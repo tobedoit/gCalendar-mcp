@@ -113,7 +113,7 @@ async function createCalendarEvent(args) {
     debugLog('Setting credentials');
     // refresh token은 실제 발급받은 값으로 교체해야 합니다.
     oauth2Client.setCredentials({
-      refresh_token: "1//0eaWBea58-2_PCgYIARAAGA4SNwF-L9IriDGNP-18WcI60SqqB10kibZ7ejjnpbiierIDHG1A4a9BDZHflCwZeZhBl3EdjuJB2hc",
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
       token_uri: "https://oauth2.googleapis.com/token"
     });
     debugLog('Credentials set');
