@@ -18,30 +18,22 @@ A Model Context Protocol (MCP) server implementation that enables AI assistants 
  
 ## Setup 
  
-1. Clone the repository: 
-```bash 
-git clone [your-repo-url] 
-cd mcp-google-calendar 
-``` 
- 
-2. Install dependencies: 
-```bash 
-npm install 
-``` 
- 
-3. Set up environment variables: 
-- Copy .env.example to .env 
-- Add your Google OAuth2 credentials 
- 
-4. Get your refresh token: 
-```bash 
-npm run auth 
-``` 
- 
-5. Update the refresh token in index.js 
- 
-## Usage 
- 
-```bash 
-npm start 
-``` 
+Paste Claude "claude_desktop_config.json"
+```json
+{
+	"mcpServers": {
+		"zmes-calendar": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"github:tobedoit/gCalendar-mcp#main"
+			],
+			"env": {
+				"GOOGLE_CLIENT_ID": "your_google_client_id",
+				"GOOGLE_CLIENT_SECRET": "your_google_client_secret"
+			}
+		}
+	}
+}
+
+```
