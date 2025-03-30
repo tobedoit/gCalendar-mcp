@@ -21,19 +21,18 @@ A Model Context Protocol (MCP) server implementation that enables AI assistants 
 Paste Claude "claude_desktop_config.json"
 ```json
 {
-	"mcpServers": {
-		"zmes-calendar": {
-			"command": "npx",
-			"args": [
-				"-y",
-				"github:tobedoit/gCalendar-mcp#main"
-			],
-			"env": {
-				"GOOGLE_CLIENT_ID": "your_google_client_id",
-				"GOOGLE_CLIENT_SECRET": "your_google_client_secret"
-			}
-		}
-	}
+  "mcpServers": {
+    "zmes-calendar": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "github:tobedoit/gCalendar-mcp#main"
+      ],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your_google_client_id",
+        "GOOGLE_CLIENT_SECRET": "your_google_client_secret"
+      }
+    }
+  }
 }
-
 ```
