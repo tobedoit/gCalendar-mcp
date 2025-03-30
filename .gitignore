@@ -4,3 +4,4 @@ node_modules
 *.code-workspace
 .env
 mcp.json
+mcp.jsonc
