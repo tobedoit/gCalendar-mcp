@@ -1,0 +1,15 @@
+{
+  "name": "google-calendar-mcp",
+  "version": "1.0.0",
+  "description": "MCP server implementation for Google Calendar integration",
+  "type": "module",
+  "bin": {
+    "google-calendar-mcp": "index.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.8.0",
+    "googleapis": "^148.0.0",
+    "dotenv": "^16.4.7"
+  }
+}
