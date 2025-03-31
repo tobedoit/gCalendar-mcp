@@ -1,10 +1,12 @@
 {
-  "name": "google-calendar-mcp",
+  "name": "@tobedoit/google-calendar-mcp",
   "version": "1.0.0",
   "description": "MCP server implementation for Google Calendar integration",
   "type": "module",
-  "bin": {
-    "google-calendar-mcp": "index.js"
+  "bin": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tobedoit/gCalendar-mcp.git"
   },
   "license": "MIT",
   "dependencies": {
