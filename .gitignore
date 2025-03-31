@@ -5,3 +5,4 @@ node_modules
 .env
 mcp.json
 mcp.jsonc
+.vscode
