@@ -26,7 +26,7 @@ Paste Claude "claude_desktop_config.json"
       "command": "npx",
       "args": [
         "-y",
-        "github:tobedoit/gCalendar-mcp#main"
+        "@tobedoit/google-calendar-mcp"
       ],
       "env": {
         "GOOGLE_CLIENT_ID": "your_google_client_id",
