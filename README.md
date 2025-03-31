@@ -30,7 +30,8 @@ Paste Claude "claude_desktop_config.json"
       ],
       "env": {
         "GOOGLE_CLIENT_ID": "your_google_client_id",
-        "GOOGLE_CLIENT_SECRET": "your_google_client_secret"
+        "GOOGLE_CLIENT_SECRET": "your_google_client_secret",
+        "GOOGLE_REFRESH_TOKEN": "your_google_refresh_token"
       }
     }
   }
