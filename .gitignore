@@ -1,8 +1,8 @@
 .DS_Store
 Thumbs.db
-node_modules
+node_modules/
 *.code-workspace
 .env
 mcp.json
 mcp.jsonc
-.vscode
+.vscode/
