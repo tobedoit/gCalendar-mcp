@@ -1,6 +1,6 @@
 {
   "name": "@tobedoit/google-calendar-mcp",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "MCP server implementation for Google Calendar integration",
   "type": "module",
   "bin": {
