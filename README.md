@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server implementation that enables AI assistants 
  
 ## Features 
  
-- Create calendar events with title, description, start/end times 
+- Create calendar events with title, description, start/end times, and alert
 - Support for adding event attendees 
 - OAuth2 authentication with Google Calendar API 
 - Full MCP protocol implementation 
