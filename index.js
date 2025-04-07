@@ -6,7 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { google } from 'googleapis';
 
-// Debug log utility
+// 디버그 로그
 function debugLog(...args) {
   console.error('DEBUG:', new Date().toISOString(), ...args);
 }
