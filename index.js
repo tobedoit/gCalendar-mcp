@@ -88,7 +88,7 @@ const server = new Server({
 
 debugLog('Server initialized');
 
-// 환경 변수 확인: MCP 클라이언트 설정이나 .env 파일을 통해 전달받은 값이 여기에 들어갑니다.
+// 환경 변수 확인: MCP 클라이언트 설정이나 .env 파일을 통해 전달받은 값이 여기에
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
@@ -111,7 +111,7 @@ async function createCalendarEvent(args) {
     debugLog('OAuth2 client created');
     
     debugLog('Setting credentials');
-    // refresh token은 실제 발급받은 값으로 교체해야 합니다.
+    // refresh token은 실제 발급받은 값으로 교체
     oauth2Client.setCredentials({
       refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
       token_uri: "https://oauth2.googleapis.com/token"
