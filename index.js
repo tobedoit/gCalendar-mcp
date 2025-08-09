@@ -187,18 +187,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// ----- optional: 빈 구현으로 404 방지 (Claude가 종종 호출) -----
-server.setRequestHandler(
-  // @ts-ignore(런타임만 존재) — 보호적 no-op
-  { method: 'resources/list' },
-  async () => ({ resources: [] })
-);
-server.setRequestHandler(
-  // @ts-ignore
-  { method: 'prompts/list' },
-  async () => ({ prompts: [] })
-);
-
 // ----- run -----
 async function runServer() {
   debugLog('Starting server');
