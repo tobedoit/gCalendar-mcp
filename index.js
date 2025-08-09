@@ -1,240 +1,231 @@
 #!/usr/bin/env node
-import * as dotenv from 'dotenv';
-dotenv.config(); // 로컬 개발 시 .env 파일을 읽습니다.
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+// stdout은 SDK(JSON-RPC)만 사용해야 하므로, 모든 자체 로그는 stderr로만.
+// 실수 방지를 위해 console.log를 차단한다.
+console.log = (...args) => {
+  try {
+    // 혹시 외부 라이브러리가 console.log를 호출하면 stderr로 우회
+    console.error('[STDOUT-BLOCKED→STDERR]', ...args);
+  } catch {}
+};
+
+import 'dotenv/config';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema
+} from '@modelcontextprotocol/sdk/types.js';
 import { google } from 'googleapis';
 
-// 디버그 로그
-function debugLog(...args) {
-  console.error('DEBUG:', new Date().toISOString(), ...args);
+// ----- logging -----
+const LOG_LEVEL = process.env.MCP_LOG_LEVEL || 'debug'; // 'debug' | 'info' | 'error' | 'silent'
+function logAt(level, ...args) {
+  const order = { silent: 0, error: 1, info: 2, debug: 3 };
+  if (order[level] <= order[LOG_LEVEL]) {
+    console.error(level.toUpperCase() + ':', new Date().toISOString(), ...args);
+  }
+}
+const debugLog = (...a) => logAt('debug', ...a);
+const infoLog = (...a) => logAt('info', ...a);
+const errorLog = (...a) => logAt('error', ...a);
+
+// ----- env checks -----
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+
+if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+  errorLog('GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET is required');
+  process.exit(1);
+}
+if (!GOOGLE_REFRESH_TOKEN) {
+  infoLog('GOOGLE_REFRESH_TOKEN is not set. Only public/limited API calls may work.');
 }
 
-// Define the create_event tool
+// ----- tool schema -----
 const CREATE_EVENT_TOOL = {
-  name: "create_event",
-  description: "Create a calendar event with specified details",
+  name: 'create_event',
+  description: 'Create a calendar event with specified details',
   inputSchema: {
-    type: "object",
+    type: 'object',
     properties: {
-      summary: {
-        type: "string",
-        description: "Event title"
-      },
-      start_time: {
-        type: "string",
-        description: "Start time (ISO format)"
-      },
-      end_time: {
-        type: "string",
-        description: "End time (ISO format)"
-      },
-      description: {
-        type: "string",
-        description: "Event description"
-      },
-      location: {
-        type: "string",
-        description: "Event location"
-      },
+      summary: { type: 'string', description: 'Event title' },
+      start_time: { type: 'string', description: 'Start time (ISO format)' },
+      end_time: { type: 'string', description: 'End time (ISO format)' },
+      description: { type: 'string', description: 'Event description' },
+      location: { type: 'string', description: 'Event location' },
       attendees: {
-        type: "array",
-        items: { type: "string" },
-        description: "List of attendee emails"
+        type: 'array',
+        items: { type: 'string' },
+        description: 'List of attendee emails'
       },
       reminders: {
-        type: "object",
+        type: 'object',
         properties: {
           useDefault: {
-            type: "boolean",
-            description: "Whether to use default reminders"
+            type: 'boolean',
+            description: 'Whether to use default reminders'
           },
           overrides: {
-            type: "array",
+            type: 'array',
             items: {
-              type: "object",
+              type: 'object',
               properties: {
-                method: {
-                  type: "string",
-                  description: "Reminder method (e.g., popup, email)"
-                },
-                minutes: {
-                  type: "number",
-                  description: "Minutes before event start for the reminder"
-                }
+                method: { type: 'string', description: 'popup | email' },
+                minutes: { type: 'number', description: 'Minutes before start' }
               },
-              required: ["method", "minutes"]
+              required: ['method', 'minutes']
             },
-            description: "List of custom reminder settings"
+            description: 'List of custom reminder settings'
           }
         },
-        description: "Reminder settings for the event"
+        description: 'Reminder settings for the event'
       }
     },
-    required: ["summary", "start_time", "end_time"]
+    required: ['summary', 'start_time', 'end_time']
   }
 };
 
-// Server implementation
-const server = new Server({
-  name: "mcp_calendar",
-  version: "1.0.0"
-}, {
-  capabilities: {
-    tools: {}
+// ----- server -----
+const server = new Server(
+  { name: 'mcp_calendar', version: '1.0.1' },
+  {
+    capabilities: {
+      tools: {},
+      // 선택: resources/prompts를 비워서라도 구현(Claude가 호출해도 404 안나게)
+      resources: {},
+      prompts: {}
+    }
   }
-});
+);
 
-debugLog('Server initialized');
+infoLog('Server initialized');
 
-// 환경 변수 확인: MCP 클라이언트 설정이나 .env 파일을 통해 전달받은 값이 여기에
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-
-if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-  console.error("Error: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables are required");
-  process.exit(1);
-}
-
-// Calendar event creation function
 async function createCalendarEvent(args) {
-  debugLog('Creating calendar event with args:', JSON.stringify(args, null, 2));
-  
-  try {
-    debugLog('Creating OAuth2 client');
-    const oauth2Client = new google.auth.OAuth2(
-      GOOGLE_CLIENT_ID,
-      GOOGLE_CLIENT_SECRET,
-      'http://localhost'
-    );
-    debugLog('OAuth2 client created');
-    
-    debugLog('Setting credentials');
-    // refresh token은 실제 발급받은 값으로 교체
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-      token_uri: "https://oauth2.googleapis.com/token"
-    });
-    debugLog('Credentials set');
+  debugLog('createCalendarEvent args:', JSON.stringify(args));
 
-    debugLog('Creating calendar service');
-    const calendar = google.calendar({ 
-      version: 'v3',
-      auth: oauth2Client
-    });
-    debugLog('Calendar service created');
-    
-    const event = {
-      summary: args.summary,
-      description: args.description,
-      start: {
-        dateTime: args.start_time,
-        timeZone: 'Asia/Seoul'
-      },
-      end: {
-        dateTime: args.end_time,
-        timeZone: 'Asia/Seoul'
-      }
-    };
-    debugLog('Event object created:', JSON.stringify(event, null, 2));
+  const oauth2Client = new google.auth.OAuth2(
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    // 필요 시 redirect URI 교체
+    'http://localhost'
+  );
 
-    if (args.location) {
-      event.location = args.location;
-      debugLog('Location added:', args.location);
+  oauth2Client.setCredentials({
+    refresh_token: GOOGLE_REFRESH_TOKEN,
+    token_uri: 'https://oauth2.googleapis.com/token'
+  });
+
+  const calendar = google.calendar({
+    version: 'v3',
+    auth: oauth2Client
+  });
+
+  const event = {
+    summary: args.summary,
+    description: args.description,
+    start: {
+      dateTime: args.start_time,
+      timeZone: 'Asia/Seoul'
+    },
+    end: {
+      dateTime: args.end_time,
+      timeZone: 'Asia/Seoul'
     }
+  };
 
-    if (args.attendees) {
-      event.attendees = args.attendees.map(email => ({ email }));
-      debugLog('Attendees added:', event.attendees);
-    }
-    
-    // 알림 설정: 전달된 값이 없으면 기본적으로 10분 전 팝업 알림을 사용합니다.
-    if (args.reminders) {
-      event.reminders = args.reminders;
-      debugLog('Custom reminders set:', JSON.stringify(args.reminders, null, 2));
-    } else {
-      event.reminders = {
-        useDefault: false,
-        overrides: [
-          { method: 'popup', minutes: 10 }
-        ]
-      };
-      debugLog('Default reminders set:', JSON.stringify(event.reminders, null, 2));
-    }
-
-    debugLog('Attempting to insert event');
-    const response = await calendar.events.insert({
-      calendarId: 'primary',
-      requestBody: event
-    });
-    debugLog('Event insert response:', JSON.stringify(response.data, null, 2));
-    return `Event created: ${response.data.htmlLink}`;
-  } catch (error) {
-    debugLog('ERROR OCCURRED:');
-    debugLog('Error name:', error.name);
-    debugLog('Error message:', error.message);
-    debugLog('Error stack:', error.stack);
-    throw new Error(`Failed to create event: ${error.message}`);
+  if (args.location) event.location = args.location;
+  if (args.attendees) {
+    event.attendees = args.attendees.map((email) => ({ email }));
   }
+  if (args.reminders) {
+    event.reminders = args.reminders;
+  } else {
+    event.reminders = {
+      useDefault: false,
+      overrides: [{ method: 'popup', minutes: 10 }]
+    };
+  }
+
+  debugLog('event payload:', JSON.stringify(event));
+
+  const res = await calendar.events.insert({
+    calendarId: 'primary',
+    requestBody: event
+  });
+
+  debugLog('insert response id:', res.data.id);
+  return `Event created: ${res.data.htmlLink}`;
 }
 
-// Tool handlers
+// ----- handlers -----
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  debugLog('List tools request received');
+  debugLog('tools/list');
   return { tools: [CREATE_EVENT_TOOL] };
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  debugLog('Call tool request received:', JSON.stringify(request, null, 2));
-  
+  debugLog('tools/call:', JSON.stringify(request));
   try {
-    const { name, arguments: args } = request.params;
-    if (!args) {
-      throw new Error("No arguments provided");
-    }
+    const { name, arguments: args } = request.params || {};
+    if (!args) throw new Error('No arguments provided');
 
-    switch (name) {
-      case "create_event": {
-        debugLog('Handling create_event request');
-        const result = await createCalendarEvent(args);
-        debugLog('Event creation successful:', result);
-        return {
-          content: [{ type: "text", text: result }],
-          isError: false
-        };
-      }
-      default:
-        debugLog('Unknown tool requested:', name);
-        return {
-          content: [{ type: "text", text: `Unknown tool: ${name}` }],
-          isError: true
-        };
+    if (name === 'create_event') {
+      const result = await createCalendarEvent(args);
+      return { content: [{ type: 'text', text: result }], isError: false };
     }
-  } catch (error) {
-    debugLog('Error in call tool handler:', error);
     return {
-      content: [{
-        type: "text",
-        text: `Error: ${error instanceof Error ? error.message : String(error)}`
-      }],
+      content: [{ type: 'text', text: `Unknown tool: ${name}` }],
+      isError: true
+    };
+  } catch (e) {
+    errorLog('CallTool error:', e?.stack || e);
+    return {
+      content: [{ type: 'text', text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
       isError: true
     };
   }
 });
 
-// Server startup function
+// ----- optional: 빈 구현으로 404 방지 (Claude가 종종 호출) -----
+server.setRequestHandler(
+  // @ts-ignore(런타임만 존재) — 보호적 no-op
+  { method: 'resources/list' },
+  async () => ({ resources: [] })
+);
+server.setRequestHandler(
+  // @ts-ignore
+  { method: 'prompts/list' },
+  async () => ({ prompts: [] })
+);
+
+// ----- run -----
 async function runServer() {
   debugLog('Starting server');
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  debugLog('Server connected to transport');
-  console.error("Calendar MCP Server running on stdio");
+  infoLog('Server connected to transport');
+  console.error('Calendar MCP Server running on stdio');
 }
 
-// Start the server
-runServer().catch((error) => {
-  debugLog('Fatal server error:', error);
-  console.error("Fatal error running server:", error);
+// ----- hardening: process-level guards -----
+process.on('uncaughtException', (err) => {
+  // stdout 만지지 말 것. 로그는 stderr.
+  errorLog('uncaughtException:', err?.stack || err);
+});
+process.on('unhandledRejection', (reason) => {
+  errorLog('unhandledRejection:', reason);
+});
+['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => {
+  process.on(sig, () => {
+    infoLog(`Received ${sig}, shutting down...`);
+    // StdioServerTransport는 종료 훅이 없으니 프로세스 종료
+    process.exit(0);
+  });
+});
+
+// ----- start -----
+runServer().catch((err) => {
+  errorLog('Fatal error running server:', err?.stack || err);
   process.exit(1);
 });
