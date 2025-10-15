@@ -1,6 +1,6 @@
 {
   "name": "@tobedoit/google-calendar-mcp",
-  "version": "1.1.12",
+  "version": "1.1.13",
   "description": "MCP server implementation for Google Calendar integration",
   "type": "module",
   "bin": {
@@ -11,6 +11,10 @@
     "url": "git+https://github.com/tobedoit/gCalendar-mcp.git"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.20.0",
     "googleapis": "^162.0.0",
