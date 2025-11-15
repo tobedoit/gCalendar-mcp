@@ -42,6 +42,43 @@ if (!GOOGLE_REFRESH_TOKEN) {
   infoLog('GOOGLE_REFRESH_TOKEN is not set. Only public/limited API calls may work.');
 }
 
+// ----- idle watchdog 설정 -----
+const IDLE_TIMEOUT_MS = Number(
+  process.env.MCP_IDLE_TIMEOUT_MS && !Number.isNaN(Number(process.env.MCP_IDLE_TIMEOUT_MS))
+    ? process.env.MCP_IDLE_TIMEOUT_MS
+    : 10 * 60 * 1000 // 기본 10분. 테스트용으로는 60 * 1000 등으로 줄여도 됨.
+);
+
+let idleTimer = null;
+
+function resetIdleTimer(reason = 'activity') {
+  if (!IDLE_TIMEOUT_MS || IDLE_TIMEOUT_MS <= 0) {
+    return; // 타임아웃 끄고 싶으면 MCP_IDLE_TIMEOUT_MS=0
+  }
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+  }
+  idleTimer = setTimeout(() => {
+    infoLog(`Idle timeout reached (${IDLE_TIMEOUT_MS}ms) - reason: ${reason}. Exiting.`);
+    process.exit(0);
+  }, IDLE_TIMEOUT_MS);
+}
+
+// 프로세스가 시작될 때 한 번 초기화
+resetIdleTimer('startup');
+
+// stdin 종료 감지 → 고아 프로세스 방지
+if (process.stdin) {
+  process.stdin.on('end', () => {
+    infoLog('stdin ended, shutting down MCP server.');
+    process.exit(0);
+  });
+  process.stdin.on('close', () => {
+    infoLog('stdin closed, shutting down MCP server.');
+    process.exit(0);
+  });
+}
+
 // ----- tool schema -----
 const CREATE_EVENT_TOOL = {
   name: 'create_event',
@@ -88,11 +125,10 @@ const CREATE_EVENT_TOOL = {
 
 // ----- server -----
 const server = new Server(
-  { name: 'mcp_calendar', version: '1.0.1' },
+  { name: 'mcp_calendar', version: '1.0.2' },
   {
     capabilities: {
       tools: {},
-      // 선택: resources/prompts를 비워서라도 구현(Claude가 호출해도 404 안나게)
       resources: {},
       prompts: {}
     }
@@ -107,7 +143,6 @@ async function createCalendarEvent(args) {
   const oauth2Client = new google.auth.OAuth2(
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
-    // 필요 시 redirect URI 교체
     'http://localhost'
   );
 
@@ -134,7 +169,9 @@ async function createCalendarEvent(args) {
     }
   };
 
-  if (args.location) event.location = args.location;
+  if (args.location) {
+    event.location = args.location;
+  }
   if (args.attendees) {
     event.attendees = args.attendees.map((email) => ({ email }));
   }
@@ -160,20 +197,25 @@ async function createCalendarEvent(args) {
 
 // ----- handlers -----
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  resetIdleTimer('list_tools'); // 액티비티 감지
   debugLog('tools/list');
   return { tools: [CREATE_EVENT_TOOL] };
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  resetIdleTimer('call_tool'); // 액티비티 감지
   debugLog('tools/call:', JSON.stringify(request));
   try {
     const { name, arguments: args } = request.params || {};
-    if (!args) throw new Error('No arguments provided');
+    if (!args) {
+      throw new Error('No arguments provided');
+    }
 
     if (name === 'create_event') {
       const result = await createCalendarEvent(args);
       return { content: [{ type: 'text', text: result }], isError: false };
     }
+
     return {
       content: [{ type: 'text', text: `Unknown tool: ${name}` }],
       isError: true
@@ -198,7 +240,6 @@ async function runServer() {
 
 // ----- hardening: process-level guards -----
 process.on('uncaughtException', (err) => {
-  // stdout 만지지 말 것. 로그는 stderr.
   errorLog('uncaughtException:', err?.stack || err);
 });
 process.on('unhandledRejection', (reason) => {
@@ -207,7 +248,6 @@ process.on('unhandledRejection', (reason) => {
 ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => {
   process.on(sig, () => {
     infoLog(`Received ${sig}, shutting down...`);
-    // StdioServerTransport는 종료 훅이 없으니 프로세스 종료
     process.exit(0);
   });
 });
