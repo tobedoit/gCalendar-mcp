@@ -43,38 +43,40 @@ if (!GOOGLE_REFRESH_TOKEN) {
 }
 
 // ----- idle watchdog 설정 -----
-const IDLE_TIMEOUT_MS = Number(
-  process.env.MCP_IDLE_TIMEOUT_MS && !Number.isNaN(Number(process.env.MCP_IDLE_TIMEOUT_MS))
-    ? process.env.MCP_IDLE_TIMEOUT_MS
-    : 10 * 60 * 1000 // 기본 10분. 테스트용으로는 60 * 1000 등으로 줄여도 됨.
-);
+// 기본값: 10분. MCP_IDLE_TIMEOUT_MS 로 덮어쓸 수 있음. (0 이하이면 비활성화)
+const parsedTimeout = Number(process.env.MCP_IDLE_TIMEOUT_MS);
+const IDLE_TIMEOUT_MS =
+  Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 10 * 60 * 1000;
 
 let idleTimer = null;
 
 function resetIdleTimer(reason = 'activity') {
-  if (!IDLE_TIMEOUT_MS || IDLE_TIMEOUT_MS <= 0) {
-    return; // 타임아웃 끄고 싶으면 MCP_IDLE_TIMEOUT_MS=0
+  if (!IDLE_TIMEOUT_MS) {
+    return; // MCP_IDLE_TIMEOUT_MS=0 으로 타임아웃 끌 수 있음
   }
   if (idleTimer) {
     clearTimeout(idleTimer);
   }
   idleTimer = setTimeout(() => {
-    infoLog(`Idle timeout reached (${IDLE_TIMEOUT_MS}ms) - reason: ${reason}. Exiting.`);
-    process.exit(0);
+    infoLog(
+      `Idle timeout reached (${IDLE_TIMEOUT_MS}ms) - reason: ${reason}. Exiting MCP server with code 1.`
+    );
+    // exit(1) → 클라이언트 입장에서는 실패 종료라 재실행 시도하기 좋음
+    process.exit(1);
   }, IDLE_TIMEOUT_MS);
 }
 
-// 프로세스가 시작될 때 한 번 초기화
+// 시작 시 한 번 호출
 resetIdleTimer('startup');
 
-// stdin 종료 감지 → 고아 프로세스 방지
+// stdin 종료 감지 → 고아 프로세스 방지 (앱 종료 시 정상 종료)
 if (process.stdin) {
   process.stdin.on('end', () => {
-    infoLog('stdin ended, shutting down MCP server.');
+    infoLog('stdin ended, shutting down MCP server with code 0.');
     process.exit(0);
   });
   process.stdin.on('close', () => {
-    infoLog('stdin closed, shutting down MCP server.');
+    infoLog('stdin closed, shutting down MCP server with code 0.');
     process.exit(0);
   });
 }
