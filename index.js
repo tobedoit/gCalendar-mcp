@@ -42,17 +42,17 @@ if (!GOOGLE_REFRESH_TOKEN) {
   infoLog('GOOGLE_REFRESH_TOKEN is not set. Only public/limited API calls may work.');
 }
 
-// ----- idle watchdog 설정 -----
-// 기본값: 10분. MCP_IDLE_TIMEOUT_MS 로 덮어쓸 수 있음. (0 이하이면 비활성화)
+// ----- idle watchdog (옵션) -----
+// 기본값: 0 → idle 타임아웃 비활성화. 필요하면 MCP_IDLE_TIMEOUT_MS 로 직접 켜기.
 const parsedTimeout = Number(process.env.MCP_IDLE_TIMEOUT_MS);
 const IDLE_TIMEOUT_MS =
-  Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 10 * 60 * 1000;
+  Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 0;
 
 let idleTimer = null;
 
 function resetIdleTimer(reason = 'activity') {
   if (!IDLE_TIMEOUT_MS) {
-    return; // MCP_IDLE_TIMEOUT_MS=0 으로 타임아웃 끌 수 있음
+    return; // 기본은 idle-timeout OFF
   }
   if (idleTimer) {
     clearTimeout(idleTimer);
@@ -61,15 +61,15 @@ function resetIdleTimer(reason = 'activity') {
     infoLog(
       `Idle timeout reached (${IDLE_TIMEOUT_MS}ms) - reason: ${reason}. Exiting MCP server with code 1.`
     );
-    // exit(1) → 클라이언트 입장에서는 실패 종료라 재실행 시도하기 좋음
+    // idle 타임아웃을 켜고 쓰는 경우에만 도달. 클라이언트가 재실행할 수 있게 exit(1).
     process.exit(1);
   }, IDLE_TIMEOUT_MS);
 }
 
-// 시작 시 한 번 호출
+// 시작 시 한 번 호출 (기본값 0이면 noop)
 resetIdleTimer('startup');
 
-// stdin 종료 감지 → 고아 프로세스 방지 (앱 종료 시 정상 종료)
+// stdin 종료 감지 → 고아 프로세스 방지 (클라이언트 종료 시 함께 종료)
 if (process.stdin) {
   process.stdin.on('end', () => {
     infoLog('stdin ended, shutting down MCP server with code 0.');
@@ -127,7 +127,7 @@ const CREATE_EVENT_TOOL = {
 
 // ----- server -----
 const server = new Server(
-  { name: 'mcp_calendar', version: '1.0.2' },
+  { name: 'mcp_calendar', version: '1.0.3' }, // 버전은 package.json 과 맞춰서 업데이트
   {
     capabilities: {
       tools: {},
@@ -199,13 +199,13 @@ async function createCalendarEvent(args) {
 
 // ----- handlers -----
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  resetIdleTimer('list_tools'); // 액티비티 감지
+  resetIdleTimer('list_tools'); // IDLE_TIMEOUT_MS > 0 인 경우에만 의미 있음
   debugLog('tools/list');
   return { tools: [CREATE_EVENT_TOOL] };
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  resetIdleTimer('call_tool'); // 액티비티 감지
+  resetIdleTimer('call_tool');
   debugLog('tools/call:', JSON.stringify(request));
   try {
     const { name, arguments: args } = request.params || {};
