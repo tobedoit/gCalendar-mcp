@@ -1,5 +1,8 @@
 # MCP Google Calendar Server 
  
+![npm](https://img.shields.io/npm/v/%40tobedoit%2Fgoogle-calendar-mcp)
+![license](https://img.shields.io/badge/license-MIT-green)
+
 A Model Context Protocol (MCP) server implementation that enables AI assistants like Claude to create and manage Google Calendar events. 
  
 ## Features 
