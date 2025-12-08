@@ -6,3 +6,4 @@ node_modules/
 mcp.json
 mcp.jsonc
 .vscode/
+dist/

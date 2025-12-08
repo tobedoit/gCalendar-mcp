@@ -4,7 +4,11 @@
   "description": "MCP server implementation for Google Calendar integration",
   "type": "module",
   "bin": {
-    "google-calendar-mcp": "index.js"
+    "google-calendar-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -15,9 +19,16 @@
     "access": "public",
     "provenance": true
   },
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.24.3",
-    "googleapis": "^167.0.0",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "googleapis": "^167.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
   }
 }

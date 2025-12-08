@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // stdout은 SDK(JSON-RPC)만 사용해야 하므로, 모든 자체 로그는 stderr로만.
 // 실수 방지를 위해 console.log를 차단한다.
-console.log = (...args) => {
+console.log = (...args: any[]) => {
   try {
     // 혹시 외부 라이브러리가 console.log를 호출하면 stderr로 우회
     console.error('[STDOUT-BLOCKED→STDERR]', ...args);
-  } catch {}
+  } catch { }
 };
 
 import 'dotenv/config';
@@ -15,19 +15,21 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
-import { google } from 'googleapis';
+import { google, calendar_v3 } from 'googleapis';
 
 // ----- logging -----
-const LOG_LEVEL = process.env.MCP_LOG_LEVEL || 'debug'; // 'debug' | 'info' | 'error' | 'silent'
-function logAt(level, ...args) {
-  const order = { silent: 0, error: 1, info: 2, debug: 3 };
+type LogLevel = 'debug' | 'info' | 'error' | 'silent';
+const LOG_LEVEL = (process.env.MCP_LOG_LEVEL as LogLevel) || 'debug';
+
+function logAt(level: LogLevel, ...args: any[]) {
+  const order: Record<LogLevel, number> = { silent: 0, error: 1, info: 2, debug: 3 };
   if (order[level] <= order[LOG_LEVEL]) {
     console.error(level.toUpperCase() + ':', new Date().toISOString(), ...args);
   }
 }
-const debugLog = (...a) => logAt('debug', ...a);
-const infoLog = (...a) => logAt('info', ...a);
-const errorLog = (...a) => logAt('error', ...a);
+const debugLog = (...a: any[]) => logAt('debug', ...a);
+const infoLog = (...a: any[]) => logAt('info', ...a);
+const errorLog = (...a: any[]) => logAt('error', ...a);
 
 // ----- env checks -----
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -48,7 +50,7 @@ const parsedTimeout = Number(process.env.MCP_IDLE_TIMEOUT_MS);
 const IDLE_TIMEOUT_MS =
   Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 0;
 
-let idleTimer = null;
+let idleTimer: NodeJS.Timeout | null = null;
 
 function resetIdleTimer(reason = 'activity') {
   if (!IDLE_TIMEOUT_MS) {
@@ -125,6 +127,19 @@ const CREATE_EVENT_TOOL = {
   }
 };
 
+interface CreateEventArgs {
+  summary: string;
+  start_time: string;
+  end_time: string;
+  description?: string;
+  location?: string;
+  attendees?: string[];
+  reminders?: {
+    useDefault?: boolean;
+    overrides?: { method: string; minutes: number }[];
+  };
+}
+
 // ----- server -----
 const server = new Server(
   { name: 'mcp_calendar', version: '1.0.3' }, // 버전은 package.json 과 맞춰서 업데이트
@@ -139,7 +154,7 @@ const server = new Server(
 
 infoLog('Server initialized');
 
-async function createCalendarEvent(args) {
+async function createCalendarEvent(args: CreateEventArgs) {
   debugLog('createCalendarEvent args:', JSON.stringify(args));
 
   const oauth2Client = new google.auth.OAuth2(
@@ -151,14 +166,14 @@ async function createCalendarEvent(args) {
   oauth2Client.setCredentials({
     refresh_token: GOOGLE_REFRESH_TOKEN,
     token_uri: 'https://oauth2.googleapis.com/token'
-  });
+  } as any);
 
   const calendar = google.calendar({
     version: 'v3',
     auth: oauth2Client
   });
 
-  const event = {
+  const event: calendar_v3.Schema$Event = {
     summary: args.summary,
     description: args.description,
     start: {
@@ -214,7 +229,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'create_event') {
-      const result = await createCalendarEvent(args);
+      const result = await createCalendarEvent(args as unknown as CreateEventArgs);
       return { content: [{ type: 'text', text: result }], isError: false };
     }
 
@@ -222,7 +237,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [{ type: 'text', text: `Unknown tool: ${name}` }],
       isError: true
     };
-  } catch (e) {
+  } catch (e: any) {
     errorLog('CallTool error:', e?.stack || e);
     return {
       content: [{ type: 'text', text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
