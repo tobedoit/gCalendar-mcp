@@ -23,9 +23,9 @@
     "dist"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.24.3",
+    "@modelcontextprotocol/sdk": "1.25.1",
     "dotenv": "^17.2.3",
-    "googleapis": "^167.0.0"
+    "googleapis": "^169.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
